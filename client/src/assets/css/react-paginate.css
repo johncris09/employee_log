@@ -1,0 +1,53 @@
+/* custom-pagination-styles.css */
+
+/* Customize the container that holds the pagination component */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  
+  /* Customize the individual pagination items (page numbers, previous, next) */
+  .pagination-item {
+    display: inline-block;
+    margin: 0 5px;
+    padding: 5px 10px;
+    border: 1px solid #007bff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  
+    /* Add hover effect */
+    &:hover {
+      background-color: #007bff;
+      color: white;
+    }
+  }
+  
+  /* Customize the currently active page */
+  .pagination-item.selected {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  /* Customize the ellipsis (...) between page numbers */
+  .pagination-ellipsis {
+    font-weight: bold;
+  }
+  
+  /* Customize the "Previous" and "Next" buttons */
+  .pagination-previous,
+  .pagination-next {
+    display: inline-block;
+    margin: 0 5px;
+    padding: 5px 10px;
+    border: 1px solid #007bff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  
+    /* Add hover effect */
+    &:hover {
+      background-color: #007bff;
+      color: white;
+    }
+  }
+  
