@@ -23,10 +23,13 @@ import { api } from 'src/components/SystemConfiguration'
 import { Skeleton } from '@mui/material'
 import 'intro.js/introjs.css'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { fa1, faSearch } from '@fortawesome/free-solid-svg-icons'
 
 const Dashboard = () => {
   const queryClient = useQueryClient()
   const user = jwtDecode(localStorage.getItem('employeeLogsToken'))
+
   const form = useFormik({
     initialValues: {
       date: '',
@@ -39,11 +42,14 @@ const Dashboard = () => {
   const filterAttendance = useMutation({
     mutationFn: async (values) => {
       return api.get('attendance/get_employee_logs', {
-        params: { date: values.date, employee_id: user.employee_id },
+        params: {
+          date: values.date,
+          employee_id: user.employee_id,
+          logsched: user.logsched,
+        },
       })
     },
     onSuccess: async (responses) => {
-      console.info(responses.data)
       await queryClient.setQueryData(['attendance', user.employee_id], responses.data)
     },
     onError: (error) => {
@@ -60,16 +66,16 @@ const Dashboard = () => {
     defaultMonth = `${year}-${month}`
     form.setFieldValue('date', defaultMonth)
   }, [])
-
   const attendance = useQuery({
-    queryFn: async () =>
-      await api
-        .get('attendance/get_employee_logs', {
-          params: { date: defaultMonth, employee_id: user.employee_id },
-        })
-        .then((response) => {
-          return response.data
-        }),
+    queryFn: async () => {
+      const response = await api.get('attendance/get_employee_logs', {
+        params: {
+          date: defaultMonth,
+          employee_id: user.employee_id,
+        },
+      })
+      return response.data
+    },
     queryKey: ['attendance', user.employee_id],
     staleTime: Infinity,
     // refetchInterval: 1000,
@@ -89,37 +95,67 @@ const Dashboard = () => {
   return (
     <>
       <ToastContainer />
-
-      <CRow className="mb-3">
-        <CCol md={12}>
-          <h4>
-            <lord-icon
-              src="https://cdn.lordicon.com/mebvgwrs.json"
-              trigger="in"
-              style={{ width: '50px', height: '50px', marginBottom: '-10px', marginRight: '-5px' }}
-            ></lord-icon>{' '}
-            Welcome {user.first_name} {user.middle_name} {user.last_name},
-          </h4>
-          <table style={{ fontSize: 14 }}>
-            <tr>
-              <td>Employee ID</td>
-              <td>:</td>
-              <td>
-                <strong> {user.employee_id} </strong>
-              </td>
-            </tr>
-            <tr>
-              <td>Latest Contract</td>
-              <td>:</td>
-              <td>
-                <strong>
-                  {formattedDateFrom} - {formattedDateTo}
-                </strong>
-              </td>
-            </tr>
-          </table>
-        </CCol>
-      </CRow>
+      <CCard className="mb-4">
+        <CCardBody>
+          <CRow className="mb-3">
+            <CCol md={12}>
+              <h5>
+                <lord-icon
+                  src="https://cdn.lordicon.com/mebvgwrs.json"
+                  trigger="in"
+                  style={{
+                    width: '50px',
+                    height: '50px',
+                    marginBottom: '-10px',
+                    marginRight: '-5px',
+                  }}
+                ></lord-icon>{' '}
+                Welcome {user.first_name} {user.middle_name} {user.last_name},
+              </h5>
+              <CRow className="justify-content-between">
+                <CCol xs={4}>
+                  <table style={{ fontSize: 14 }}>
+                    <tr>
+                      <td>Employee ID</td>
+                      <td>:</td>
+                      <td>
+                        <strong> {user.employee_id} </strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>Latest Contract</td>
+                      <td>:</td>
+                      <td>
+                        <strong>
+                          {formattedDateFrom} - {formattedDateTo}
+                        </strong>
+                      </td>
+                    </tr>
+                  </table>
+                </CCol>
+                <CCol xs={4}>
+                  <table style={{ fontSize: 14 }}>
+                    <tr>
+                      <td>Log Schedule</td>
+                      <td>:</td>
+                      <td>
+                        <strong> {user.logsched} </strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>Office Assigned</td>
+                      <td>:</td>
+                      <td>
+                        <strong> {user.office_assigned} </strong>
+                      </td>
+                    </tr>
+                  </table>
+                </CCol>
+              </CRow>
+            </CCol>
+          </CRow>
+        </CCardBody>
+      </CCard>
 
       <CRow>
         <CCol md={4}>
@@ -133,9 +169,9 @@ const Dashboard = () => {
                   value={form.values.date}
                   name="date"
                 />
-                <div className="d-grid gap-2 d-md-flex justify-content-md-end mt-3  ">
+                <div className="d-grid gap-2 end mt-3">
                   <CButton type="submit" color="primary">
-                    Search
+                    <FontAwesomeIcon icon={faSearch} /> Search
                   </CButton>
                 </div>
               </CForm>
@@ -153,10 +189,12 @@ const Dashboard = () => {
                 <h5>For the Month of {formatDate(form.values.date)}</h5>
               )}
             </CCardBody>
-            <CTable responsive bordered>
+            <CTable responsive bordered small>
               <CTableHead>
                 <CTableRow className="text-center">
-                  <CTableHeaderCell scope="col">Date</CTableHeaderCell>
+                  <CTableHeaderCell scope="col" colSpan={2}>
+                    Date
+                  </CTableHeaderCell>
                   <CTableHeaderCell scope="col">Time In</CTableHeaderCell>
                   <CTableHeaderCell scope="col">Time Out</CTableHeaderCell>
                   <CTableHeaderCell scope="col">Time In</CTableHeaderCell>
@@ -184,13 +222,66 @@ const Dashboard = () => {
                   : attendance?.data?.map((row, index) => {
                       return (
                         <CTableRow key={index}>
-                          <CTableDataCell>
-                            {row.day} {row.date}
+                          <CTableDataCell
+                            scope="row"
+                            style={
+                              row.date === 'Saturday' || row.date === 'Sunday'
+                                ? { backgroundColor: '#F5F5F5' }
+                                : {}
+                            }
+                          >
+                            {row.day}
                           </CTableDataCell>
-                          <CTableDataCell className="text-center">{row.login1}</CTableDataCell>
-                          <CTableDataCell className="text-center">{row.logout1}</CTableDataCell>
-                          <CTableDataCell className="text-center">{row.login2}</CTableDataCell>
-                          <CTableDataCell className="text-center">{row.logout2}</CTableDataCell>
+                          <CTableDataCell
+                            scope="row"
+                            style={
+                              row.date === 'Saturday' || row.date === 'Sunday'
+                                ? { backgroundColor: '#F5F5F5' }
+                                : {}
+                            }
+                          >
+                            {row.date}
+                          </CTableDataCell>
+                          <CTableDataCell
+                            style={
+                              row.date === 'Saturday' || row.date === 'Sunday'
+                                ? { backgroundColor: '#F5F5F5' }
+                                : {}
+                            }
+                            className="text-center"
+                          >
+                            {row?.login1}
+                          </CTableDataCell>
+                          <CTableDataCell
+                            style={
+                              row.date === 'Saturday' || row.date === 'Sunday'
+                                ? { backgroundColor: '#F5F5F5' }
+                                : {}
+                            }
+                            className="text-center"
+                          >
+                            {row?.logout1}
+                          </CTableDataCell>
+                          <CTableDataCell
+                            style={
+                              row.date === 'Saturday' || row.date === 'Sunday'
+                                ? { backgroundColor: '#F5F5F5' }
+                                : {}
+                            }
+                            className="text-center"
+                          >
+                            {row?.login2}
+                          </CTableDataCell>
+                          <CTableDataCell
+                            style={
+                              row.date === 'Saturday' || row.date === 'Sunday'
+                                ? { backgroundColor: '#F5F5F5' }
+                                : {}
+                            }
+                            className="text-center"
+                          >
+                            {row?.logout2}
+                          </CTableDataCell>
                         </CTableRow>
                       )
                     })}

@@ -109,4 +109,16 @@ class UserModel extends CI_Model
 
 	}
 
+	public function get_schedule($data)
+	{
+		// Load the second database
+		$second_db = $this->load->database('second_db', TRUE);
+
+		$query = $second_db
+			->where($data)
+			->get('schedules');
+		return $query->row();
+
+	}
+
 }

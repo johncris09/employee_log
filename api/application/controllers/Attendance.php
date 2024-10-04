@@ -16,6 +16,7 @@ class Attendance extends RestController
 		parent::__construct();
 		$this->objOfJwt = new CreatorJwt();
 		$this->load->model('AttendanceModel');
+		$this->load->model('UserModel');
 	}
 
 
@@ -32,20 +33,164 @@ class Attendance extends RestController
 
 	public function get_employee_logs_get()
 	{
-		$model = new AttendanceModel;
+		$attendanceModel = new AttendanceModel;
+		$userModel = new UserModel;
 
 		$requestData = $this->input->get();
+
 		$month = date('m', strtotime($requestData['date']));
 		$year = date('Y', strtotime($requestData['date']));
 
 
-		$employee_id = str_replace("-", "", $requestData['employee_id']);
-		
-		$data = array(
-			'month' => $month,
-			'year' => $year,
-			'employee_id' => $employee_id
-		);
+		// get employee schedule
+		$schedule = $userModel->get_schedule([
+			'joidnum' => $requestData['employee_id'],
+		]);
+
+		if ($schedule) {
+
+			if ($schedule->logsched == '4 log (5 days CENRO)') {
+
+				$attendance = $this->generate_4_log(
+					$employee_id = $requestData['employee_id'],
+					$year,
+					$month,
+					$login1 = $schedule->timeinsched,
+					$login1_start_range = '-30 minutes',
+					$login1_end_range = '+1 hour +59 minutes',
+
+					$lgoout1 = $schedule->timeoutsched,
+					$logout1_start_range = '-2 hours',
+					$logout1_end_range = '+20 minutes',
+
+
+					$login2 = $schedule->timeinsched2,
+					$login2_start_range = '-30 minutes',
+					$login2_end_range = '+1 hour +59 minutes',
+
+
+					$logout2 = $schedule->timeoutsched2,
+					$logout2_start_range = '-2 hours',
+					$logout2_end_range = '+30 minutes',
+				);
+
+				$this->response($attendance, RestController::HTTP_OK);
+
+
+			} else if ($schedule->logsched == '2 log (8 hours)') {
+
+
+				$attendance = $this->generate_2_log(
+					$employee_id = $requestData['employee_id'],
+					$year,
+					$month,
+
+					$login1 = '08:00:00',
+					$login1_start_range = '-30 minutes',
+					$login1_end_range = '+30 minutes',
+
+					$logout2 = '17:00:00',
+					$logout2_start_range = '-30 minutes',
+					$logout2_end_range = '+30 minutes',
+
+				);
+
+				$this->response($attendance, RestController::HTTP_OK);
+			} else if ($schedule->logsched == '2 log (night shift)') {
+				
+				$attendance = $this->generate_2_log(
+					$employee_id = $requestData['employee_id'],
+					$year,
+					$month,
+
+					$login1 = $schedule->timeinsched,
+					$login1_start_range = '-30 minutes',
+					$login1_end_range = '+30 minutes',
+
+					$logout2 = $schedule->timeoutsched,
+					$logout2_start_range = '-30 minutes',
+					$logout2_end_range = '+30 minutes',
+
+				);
+				$this->response($attendance, RestController::HTTP_OK);
+
+			} else {
+ 
+				$attendance = $this->generate_2_log(
+					$employee_id = $requestData['employee_id'],
+					$year,
+					$month,
+
+					$login1 = $schedule->timeinsched,
+					$login1_start_range = '-30 minutes',
+					$login1_end_range = '+30 minutes',
+
+					$logout2 = $schedule->timeoutsched,
+					$logout2_start_range = '-30 minutes',
+					$logout2_end_range = '+30 minutes',
+
+				);
+				$this->response($attendance, RestController::HTTP_OK);
+
+			}
+		} else {
+			// Default Log
+			$attendance = $this->generate_4_log(
+				$employee_id = $requestData['employee_id'],
+				$year,
+				$month,
+				$login1 = '08:00:00',
+				$login1_start_range = '-30 minutes',
+				$login1_end_range = '+1 hour +59 minutes',
+
+				$lgoout1 = '12:00:00',
+				$logout1_start_range = '-2 hours',
+				$logout1_end_range = '+20 minutes',
+
+
+				$login2 = '13:00:00',
+				$login2_start_range = '-30 minutes',
+				$login2_end_range = '+1 hour +59 minutes',
+
+
+				$logout2 = '17:00:00',
+				$logout2_start_range = '-2 hours',
+				$logout2_end_range = '+30 minutes',
+			);
+
+			$this->response($attendance, RestController::HTTP_OK);
+
+
+		}
+
+		$this->response($schedule, RestController::HTTP_OK);
+
+	}
+
+	private function generate_4_log(
+		$employee_id,
+		$year,
+		$month,
+
+		$timeinsched,
+		$timeinsched_start_range,
+		$timeinsched_end_range,
+
+		$timeoutsched,
+		$timeoutsched_start_range,
+		$timeoutsched_end_range,
+
+
+
+		$timeinsched2,
+		$timeinsched2_start_range,
+		$timeinsched2_end_range,
+
+		$timeoutsched2,
+		$timeoutsched2_start_range,
+		$timeoutsched2_end_range,
+	) {
+		$AttendanceModel = new AttendanceModel;
 
 		// Get the number of days in the specified month and year
 		$numberOfDays = cal_days_in_month(CAL_GREGORIAN, $month, $year);
@@ -72,16 +217,38 @@ class Attendance extends RestController
 			// Get the attendance using whole date and employee id
 			$data = array(
 				'bio_date' => "$year-$month-$day",
-				'employee_id' => 	$employee_id
+				'employee_id' => str_replace("-", "", $employee_id) // remove -
 			);
-
-			$result = $model->get_employee_logs($data);
+			$result = $AttendanceModel->get_employee_logs($data);
 
 			if (!empty($result)) {
+
 				foreach ($result as $row) {
 					$bio_time = $row->bio_time;
 
-					$timeType = $this->getTimeType($bio_time);
+					$timeType = $this->get_time_type_4_log(
+						$bio_time,
+
+
+						$timeinsched,
+						$timeinsched_start_range,
+						$timeinsched_end_range,
+
+						$timeoutsched,
+						$timeoutsched_start_range,
+						$timeoutsched_end_range,
+
+
+						$timeinsched2,
+						$timeinsched2_start_range,
+						$timeinsched2_end_range,
+
+
+						$timeoutsched2,
+						$timeoutsched2_start_range,
+						$timeoutsched2_end_range,
+					);
+
 					if ($timeType == 'login1' && empty($dailyAttendance['login1'])) {
 						$dailyAttendance['login1'] = $bio_time;
 					} elseif ($timeType == 'logout1' && empty($dailyAttendance['logout1'])) {
@@ -98,38 +265,224 @@ class Attendance extends RestController
 			$attendance[] = $dailyAttendance;
 		}
 
-		$this->response($attendance, RestController::HTTP_OK);
+		return $attendance;
 	}
 
 
-	private function getTimeType($bio_time)
-	{
+
+	private function generate_2_log(
+		$employee_id,
+		$year,
+		$month,
+
+		$timeinsched,
+		$timeinsched_start_range,
+		$timeinsched_end_range,
+
+		$timeoutsched2,
+		$timeoutsched2_start_range,
+		$timeoutsched2_end_range,
+	) {
+		$AttendanceModel = new AttendanceModel;
+
+
+		// Get the number of days in the specified month and year
+		$numberOfDays = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+
+		// Loop through each day of the month
+		$attendance = [];
+		for ($day = 1; $day <= $numberOfDays; $day++) {
+			// Create a date object for the current day
+			$date = new DateTime("$year-$month-$day");
+
+			// Format the date to get the day of the week (full text)
+			$dayOfWeek = $date->format('l'); // 'l' gives full textual representation of the day of the week
+
+			// Initialize the attendance record for the current day
+			$dailyAttendance = array(
+				'day' => $day,
+				'date' => $dayOfWeek,
+				'login1' => '',
+				'logout1' => '',
+				'login2' => '',
+				'logout2' => ''
+			);
+
+			// Get the attendance using whole date and employee id
+			$data = array(
+				'bio_date' => "$year-$month-$day",
+				'employee_id' => str_replace("-", "", $employee_id) // remove -
+			);
+			$result = $AttendanceModel->get_employee_logs($data);
+
+			if (!empty($result)) {
+
+				foreach ($result as $row) {
+					$bio_time = $row->bio_time;
+
+					$timeType = $this->get_time_type_2_log(
+						$bio_time,
+
+
+						$timeinsched,
+						$timeinsched_start_range,
+						$timeinsched_end_range,
+
+
+						$timeoutsched2,
+						$timeoutsched2_start_range,
+						$timeoutsched2_end_range,
+					);
+
+					if ($timeType == 'login1' && empty($dailyAttendance['login1'])) {
+						$dailyAttendance['login1'] = $bio_time;
+					} elseif ($timeType == 'logout2' && empty($dailyAttendance['logout2'])) {
+						$dailyAttendance['logout2'] = $bio_time;
+					}
+				}
+			}
+
+			// Add the daily attendance record to the array
+			$attendance[] = $dailyAttendance;
+		}
+
+		return $attendance;
+	}
+
+
+
+
+	private function get_time_type_4_log(
+		$bio_time,
+
+
+		$timeinsched,
+		$timeinsched_start_range,
+		$timeinsched_end_range,
+
+		$timeoutsched,
+		$timeoutsched_start_range,
+		$timeoutsched_end_range,
+
+
+		$timeinsched2,
+		$timeinsched2_start_range,
+		$timeinsched2_end_range,
+
+
+		$timeoutsched2,
+		$timeoutsched2_start_range,
+		$timeoutsched2_end_range,
+
+
+	) {
+
+
 		// Convert $bio_time to a DateTime object
 		$time = DateTime::createFromFormat('H:i:s', $bio_time);
 
-		// Define the time ranges
-		$login_morning_start = DateTime::createFromFormat('H:i:s', '00:00:00');
-		$login_morning_end = DateTime::createFromFormat('H:i:s', '10:00:00');
-		$logout_morning_start = DateTime::createFromFormat('H:i:s', '10:01:00');
-		$logout_morning_end = DateTime::createFromFormat('H:i:s', '12:29:59');
-		$login_afternoon_start = DateTime::createFromFormat('H:i:s', '12:30:00');
-		$login_afternoon_end = DateTime::createFromFormat('H:i:s', '15:00:00');
-		$logout_afternoon_start = DateTime::createFromFormat('H:i:s', '15:01:00');
-		$logout_afternoon_end = DateTime::createFromFormat('H:i:s', '23:59:59');
+		$timeinsched = DateTime::createFromFormat('H:i:s', $timeinsched);
+		$timeoutsched = DateTime::createFromFormat('H:i:s', $timeoutsched);
+		$timeinsched2 = DateTime::createFromFormat('H:i:s', $timeinsched2);
+		$timeoutsched2 = DateTime::createFromFormat('H:i:s', $timeoutsched2);
+
+		// Login 1
+		$login_start_datetime = clone $timeinsched;
+		$login_start_datetime->modify($timeinsched_start_range);
+
+		$login_end_datetime = clone $timeinsched;
+		$login_end_datetime->modify($timeinsched_end_range);
+
+
+		// Logout 1
+		$logout_start_datetime = clone $timeoutsched;
+		$logout_start_datetime->modify($timeoutsched_start_range);
+
+		$logout_end_datetime = clone $timeoutsched;
+		$logout_end_datetime->modify($timeoutsched_end_range);
+
+
+
+		// Login 2
+		$login2_start_datetime = clone $timeinsched2;
+		$login2_start_datetime->modify($timeinsched2_start_range);
+
+		$login2_end_datetime = clone $timeinsched2;
+		$login2_end_datetime->modify($timeinsched2_end_range);
+
+
+		// Logout 2
+		$logout2_start_datetime = clone $timeoutsched2;
+		$logout2_start_datetime->modify($timeoutsched2_start_range);
+
+		$logout2_end_datetime = clone $timeoutsched2;
+		$logout2_end_datetime->modify($timeoutsched2_end_range);
 
 		// Determine the time type
-		if ($time >= $login_morning_start && $time <= $login_morning_end) {
+		if ($time >= $login_start_datetime && $time <= $login_end_datetime) {
 			return 'login1';
-		} elseif ($time >= $logout_morning_start && $time <= $logout_morning_end) {
+		} elseif ($time >= $logout_start_datetime && $time <= $logout_end_datetime) {
 			return 'logout1';
-		} elseif ($time >= $login_afternoon_start && $time <= $login_afternoon_end) {
+		} elseif ($time >= $login2_start_datetime && $time <= $login2_end_datetime) {
 			return 'login2';
-		} elseif ($time >= $logout_afternoon_start && $time <= $logout_afternoon_end) {
+		} elseif ($time >= $logout2_start_datetime && $time <= $logout2_end_datetime) {
 			return 'logout2';
 		} else {
 			return 'Unknown Time Type';
 		}
 	}
+
+
+	private function get_time_type_2_log(
+		$bio_time,
+
+		$timeinsched,
+		$timeinsched_start_range,
+		$timeinsched_end_range,
+
+
+		$timeoutsched2,
+		$timeoutsched2_start_range,
+		$timeoutsched2_end_range,
+
+
+	) {
+
+
+		// Convert $bio_time to a DateTime object
+		$time = DateTime::createFromFormat('H:i:s', $bio_time);
+
+		$timeinsched = DateTime::createFromFormat('H:i:s', $timeinsched);
+		$timeoutsched2 = DateTime::createFromFormat('H:i:s', $timeoutsched2);
+
+		// Login 1
+		$login_start_datetime = clone $timeinsched;
+		$login_start_datetime->modify($timeinsched_start_range);
+
+		$login_end_datetime = clone $timeinsched;
+		$login_end_datetime->modify($timeinsched_end_range);
+
+
+		// Logout 2
+		$logout2_start_datetime = clone $timeoutsched2;
+		$logout2_start_datetime->modify($timeoutsched2_start_range);
+
+		$logout2_end_datetime = clone $timeoutsched2;
+		$logout2_end_datetime->modify($timeoutsched2_end_range);
+
+		// Determine the time type
+		if ($time >= $login_start_datetime && $time <= $login_end_datetime) {
+			return 'login1';
+		} elseif ($time >= $logout2_start_datetime && $time <= $logout2_end_datetime) {
+			return 'logout2';
+		} else {
+			return 'Unknown Time Type';
+		}
+	}
+
+
+
+
 
 
 
